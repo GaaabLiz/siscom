@@ -2,6 +2,53 @@ import winreg
 import argparse
 import os
 import re
+from rich import print
+
+def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
+    """Legge ricorsivamente tutti i dati e le sottochiavi dal percorso del registro specificato."""
+    try:
+        with winreg.OpenKey(base_hive, key_path) as key:
+            values = {}
+            subkeys = []
+
+            # Legge i valori della chiave corrente
+            i = 0
+            while True:
+                try:
+                    value_name, value_data, _ = winreg.EnumValue(key, i)
+                    values[value_name] = value_data
+                    i += 1
+                except OSError:
+                    break
+
+            # Elenca le sottochiavi
+            i = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    subkeys.append(subkey_name)
+                    i += 1
+                except OSError:
+                    break
+
+            # Stampa i valori della chiave corrente
+            if values:
+                print(f"[green]Valori trovati in {key_path}:[/green]")
+                for name, data in values.items():
+                    print(f"  {name}: {data}")
+
+            # Ricorsivamente legge le sottochiavi
+            for subkey in subkeys:
+                subkey_path = os.path.normpath(f"{key_path}\\{subkey}")
+                print(f"\n[yellow]Esplorando sottochiave: {subkey_path}[/yellow]")
+                read_registry_recursive(subkey_path, base_hive)
+
+    except FileNotFoundError:
+        print(f"[red]Chiave non trovata: {key_path}[/red]")
+    except PermissionError:
+        print(f"[red]Permessi insufficienti per accedere a: {key_path}[/red]")
+    except Exception as e:
+        print(f"[red]Errore durante l'accesso a {key_path}: {e}[/red]")
 
 def find_guids_in_cs_files(directory, search_text):
     guid_pattern = re.compile(r'Guid\("([A-Fa-f0-9-]+)"\)')
@@ -12,57 +59,17 @@ def find_guids_in_cs_files(directory, search_text):
             if file.endswith('.cs'):
                 file_path = os.path.join(root, file)
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, 'r') as f:
                         for line in f:
                             if search_text in line:
                                 match = guid_pattern.search(line)
                                 if match:
+                                    print(f"Found GUID inside file [magenta]{file_path}[/magenta]")
                                     guids.append(match.group(1))
                 except Exception as e:
-                    print(f"Errore durante la lettura del file {file_path}: {e}")
+                    pass
 
     return guids
-
-def read_registry_value(key_path):
-    try:
-        # Apri la chiave del registro
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
-            values = {}
-            i = 0
-            while True:
-                try:
-                    value_name, value_data, _ = winreg.EnumValue(key, i)
-                    values[value_name] = value_data
-                    i += 1
-                except OSError:
-                    break
-            return values
-    except FileNotFoundError:
-        print(f"Chiave non trovata: {key_path}")
-    except PermissionError:
-        print(f"Permessi insufficienti per accedere a: {key_path}")
-    except Exception as e:
-        print(f"Errore durante l'accesso a {key_path}: {e}")
-
-    return None
-
-def check_registry_for_guids(guids):
-    base_paths = [
-        r"SOFTWARE\Classes\CLSID\{guid}\InprocServer32\1.6.6.3",
-        r"SOFTWARE\Classes\ILFashion.CILFashion\CLSID",
-        r"SOFTWARE\Classes\WOW6432Node\CLSID\{guid}\InprocServer32\1.6.6.3",
-        r"SOFTWARE\WOW6432Node\Classes\CLSID\{guid}\InprocServer32\1.6.6.3",
-    ]
-
-    for guid in guids:
-        print(f"\nVerifica del GUID: {guid}")
-        for path in base_paths:
-            formatted_path = path.replace("{guid}", guid)
-            values = read_registry_value(formatted_path)
-            if values:
-                print(f"Valori trovati in {formatted_path}: {values}")
-            else:
-                print(f"Nessun valore trovato o impossibile leggere {formatted_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
@@ -72,11 +79,16 @@ def main():
     search_text = '[ComVisible(true), ClassInterface(ClassInterfaceType.None), Guid('
     guids_found = find_guids_in_cs_files(args.directory, search_text)
 
-    if not guids_found:
-        print("Nessun GUID trovato.")
-    else:
-        print(f"Trovati GUID: {guids_found}")
-        check_registry_for_guids(guids_found)
+    base_paths = [
+        r"SOFTWARE\Classes\CLSID",
+        r"SOFTWARE\WOW6432Node\Classes\CLSID",
+    ]
+
+    for clsid in guids_found:
+        for base_path in base_paths:
+            key_path = os.path.normpath(f"{base_path}\\{{{clsid}}}")
+            print(f"\nEsplorando [blue]CLSID: {clsid}[/blue] | Path = [blue]{key_path}[/blue]")
+            read_registry_recursive(key_path)
 
 if __name__ == "__main__":
     main()
