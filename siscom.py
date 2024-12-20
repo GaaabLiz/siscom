@@ -4,8 +4,17 @@ import os
 import re
 from rich import print
 
+def is_end_node(key_path) -> bool:
+    #print(f"Checking {key_path}...")
+    arr = key_path.split('\\')
+    last = arr[-1]
+    #print(f"Last = {last}")
+    pattern = r'^\d+\.\d+\.\d+\.\d+$'
+    return last == "InprocServer32"
+
 def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
     """Legge ricorsivamente tutti i dati e le sottochiavi dal percorso del registro specificato."""
+
     try:
         with winreg.OpenKey(base_hive, key_path) as key:
             values = {}
@@ -40,8 +49,9 @@ def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
             # Ricorsivamente legge le sottochiavi
             for subkey in subkeys:
                 subkey_path = os.path.normpath(f"{key_path}\\{subkey}")
-                print(f"\n[yellow]Esplorando sottochiave: {subkey_path}[/yellow]")
-                read_registry_recursive(subkey_path, base_hive)
+                if is_end_node(subkey_path):
+                    #print(f"\n[yellow]Esplorando sottochiave: {subkey_path}[/yellow]")
+                    read_registry_recursive(subkey_path, base_hive)
 
     except FileNotFoundError:
         print(f"[red]Chiave non trovata: {key_path}[/red]")
@@ -71,6 +81,8 @@ def find_guids_in_cs_files(directory, search_text):
 
     return guids
 
+
+
 def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
     parser.add_argument("directory", type=str, help="Percorso iniziale della directory da scansionare")
@@ -84,11 +96,18 @@ def main():
         r"SOFTWARE\WOW6432Node\Classes\CLSID",
     ]
 
+    list = []
+
     for clsid in guids_found:
         for base_path in base_paths:
             key_path = os.path.normpath(f"{base_path}\\{{{clsid}}}")
-            print(f"\nEsplorando [blue]CLSID: {clsid}[/blue] | Path = [blue]{key_path}[/blue]")
-            read_registry_recursive(key_path)
+            list.append(key_path)
+            print(f"Registry path loaded: [green]{key_path}[/green]")
+
+    for item in list:
+        print(f"\n\nChecking path [blue]{item}[/blue]")
+        read_registry_recursive(item)
+
 
 if __name__ == "__main__":
     main()
