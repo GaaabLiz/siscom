@@ -54,14 +54,15 @@ def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
                     read_registry_recursive(subkey_path, base_hive)
 
     except FileNotFoundError:
-        print(f"[red]Chiave non trovata: {key_path}[/red]")
+        pass
+        #print(f"[red]Chiave non trovata: {key_path}[/red]")
     except PermissionError:
         print(f"[red]Permessi insufficienti per accedere a: {key_path}[/red]")
     except Exception as e:
         print(f"[red]Errore durante l'accesso a {key_path}: {e}[/red]")
 
-def find_guids_in_cs_files(directory, search_text):
-    guid_pattern = re.compile(r'Guid\("([A-Fa-f0-9-]+)"\)')
+def find_guids_in_cs_files(directory):
+    guid_pattern = re.compile(r'Guid\(\s*"([A-Fa-f0-9-]+)"\s*\)')
     guids = []
 
     for root, _, files in os.walk(directory):
@@ -69,13 +70,13 @@ def find_guids_in_cs_files(directory, search_text):
             if file.endswith('.cs'):
                 file_path = os.path.join(root, file)
                 try:
-                    with open(file_path, 'r') as f:
-                        for line in f:
-                            if search_text in line:
-                                match = guid_pattern.search(line)
-                                if match:
-                                    print(f"Found GUID inside file [magenta]{file_path}[/magenta]")
-                                    guids.append(match.group(1))
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        matches = guid_pattern.findall(content)
+                        if matches:
+                            for i in matches:
+                                print(f"Found [orange]GUID[/orange] in file [magenta]{file_path}[/magenta]: {i}")
+                            guids.extend(matches)
                 except Exception as e:
                     pass
 
@@ -88,8 +89,9 @@ def main():
     parser.add_argument("directory", type=str, help="Percorso iniziale della directory da scansionare")
     args = parser.parse_args()
 
-    search_text = '[ComVisible(true), ClassInterface(ClassInterfaceType.None), Guid('
-    guids_found = find_guids_in_cs_files(args.directory, search_text)
+    guids_found_all = find_guids_in_cs_files(args.directory)
+    seen = set()
+    guids_found = [x for x in guids_found_all if not (x in seen or seen.add(x))]
 
     base_paths = [
         r"SOFTWARE\Classes\CLSID",
@@ -105,7 +107,7 @@ def main():
             print(f"Registry path loaded: [green]{key_path}[/green]")
 
     for item in list:
-        print(f"\n\nChecking path [blue]{item}[/blue]")
+        #print(f"\n\nChecking path [blue]{item}[/blue]")
         read_registry_recursive(item)
 
 
