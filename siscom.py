@@ -82,16 +82,45 @@ def find_guids_in_cs_files(directory):
 
     return guids
 
+def find_guid_in_list_file(file_path):
+    righe = []
+    try:
+        with open(file_path, 'r') as file:
+            for linea in file:
+                # Rimuove gli spazi o i caratteri di nuova linea alla fine della riga
+                righe.append(linea.strip())
+        return righe
+    except FileNotFoundError:
+        print(f"Il file {file_path} non è stato trovato.")
+    except Exception as e:
+        print(f"Si è verificato un errore: {e}")
 
+def export_guids_to_file(guids):
+    try:
+        with open("guids.txt", 'w', encoding='utf-8') as file:
+            for riga in guids:
+                file.write(riga + '\n')  # Scrivi ogni elemento su una nuova riga
+        print(f"File scritto correttamente in guids.txt")
+    except Exception as e:
+        print(f"Si è verificato un errore: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
-    parser.add_argument("directory", type=str, help="Percorso iniziale della directory da scansionare")
+    parser.add_argument("--path", type=str, help="Percorso iniziale della directory da scansionare")
+    parser.add_argument("--list", type=str, help="Percorso del file contenente la lista degli GUID.")
+    parser.add_argument("--export", action='store_true' , help="Export to current directory all GIUD found in a .txt file.")
     args = parser.parse_args()
 
-    guids_found_all = find_guids_in_cs_files(args.directory)
-    seen = set()
-    guids_found = [x for x in guids_found_all if not (x in seen or seen.add(x))]
+    if args.path:
+        guids_found_all = find_guids_in_cs_files(args.path)
+        seen = set()
+        guids_found = [x for x in guids_found_all if not (x in seen or seen.add(x))]
+        if args.export:
+            export_guids_to_file(guids_found)
+    elif args.list:
+        guids_found_all = find_guid_in_list_file(args.list)
+        seen = set()
+        guids_found = [x for x in guids_found_all if not (x in seen or seen.add(x))]
 
     base_paths = [
         r"SOFTWARE\Classes\CLSID",
