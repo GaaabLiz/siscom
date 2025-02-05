@@ -2,7 +2,36 @@ import winreg
 import argparse
 import os
 import re
+from dataclasses import dataclass
+
+import rich
 from rich import print
+
+com_entries = []
+
+@dataclass
+class ComDictEntry:
+    registry_path: str
+    values: dict[str, any]
+
+@dataclass
+class ComEntry:
+    registry_path: str
+    class_name: str
+    assembly: str
+    codebase: str
+    runtime_version: str
+    threading_model: str
+
+def format_com_entry(entry: ComDictEntry) -> ComEntry:
+    return ComEntry(
+        class_name= entry.values['Class'] if 'Class' in entry.values else "null",
+        assembly= entry.values['Assembly'] if 'Assembly' in entry.values else "null",
+        codebase= entry.values['CodeBase'] if 'CodeBase' in entry.values else "null",
+        runtime_version=entry.values['RuntimeVersion'] if 'RuntimeVersion' in entry.values else "null",
+        threading_model=entry.values['ThreadingModel'] if 'ThreadingModel' in entry.values else "null",
+        registry_path=entry.registry_path,
+    )
 
 def is_end_node(key_path) -> bool:
     #print(f"Checking {key_path}...")
@@ -12,7 +41,7 @@ def is_end_node(key_path) -> bool:
     pattern = r'^\d+\.\d+\.\d+\.\d+$'
     return last == "InprocServer32"
 
-def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
+def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE, log: bool = False):
     """Legge ricorsivamente tutti i dati e le sottochiavi dal percorso del registro specificato."""
 
     try:
@@ -42,9 +71,14 @@ def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
 
             # Stampa i valori della chiave corrente
             if values:
-                print(f"[green]Valori trovati in {key_path}:[/green]")
+                print(f"[green]Valori trovati in {key_path}:[/green]") if log else None
                 for name, data in values.items():
-                    print(f"  {name}: {data}")
+                    print(f"  {name}: {data}") if log else None
+
+            com_entries.append(ComDictEntry(
+                registry_path=key_path,
+                values=values,
+            ))
 
             # Ricorsivamente legge le sottochiavi
             for subkey in subkeys:
@@ -55,7 +89,7 @@ def read_registry_recursive(key_path, base_hive=winreg.HKEY_LOCAL_MACHINE):
 
     except FileNotFoundError:
         pass
-        #print(f"[red]Chiave non trovata: {key_path}[/red]")
+        print(f"[red]Chiave non trovata: {key_path}[/red]") if log else None
     except PermissionError:
         print(f"[red]Permessi insufficienti per accedere a: {key_path}[/red]")
     except Exception as e:
@@ -109,6 +143,7 @@ def main():
     parser.add_argument("--path", type=str, help="Percorso iniziale della directory da scansionare")
     parser.add_argument("--list", type=str, help="Percorso del file contenente la lista degli GUID.")
     parser.add_argument("--export", action='store_true' , help="Export to current directory all GIUD found in a .txt file.")
+    parser.add_argument("--verbose", action='store_true' , help="Log all entries found and not found.")
     args = parser.parse_args()
 
     if args.path:
@@ -137,7 +172,13 @@ def main():
 
     for item in list:
         #print(f"\n\nChecking path [blue]{item}[/blue]")
-        read_registry_recursive(item)
+        read_registry_recursive(item, winreg.HKEY_LOCAL_MACHINE, args.verbose)
+
+    rich.print("\n\n\n")
+    for i in com_entries:
+        if i.registry_path.endswith('InprocServer32'):
+            formatted_com_entry = format_com_entry(i)
+            rich.print(formatted_com_entry)
 
 
 if __name__ == "__main__":
