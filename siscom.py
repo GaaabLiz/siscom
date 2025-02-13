@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import rich
 from rich import print
+from rich.table import Table
 
 com_entries = []
 
@@ -138,6 +139,26 @@ def export_guids_to_file(guids):
     except Exception as e:
         print(f"Si è verificato un errore: {e}")
 
+def print_com_entries(array: list[ComEntry]):
+    table = Table(title="COM Entries")
+
+    # Aggiungi intestazioni
+    table.add_column("Registry Path", style="cyan", overflow="fold")
+    table.add_column("Class Name", style="green")
+    table.add_column("Assembly", style="yellow", overflow="fold")
+    table.add_column("Codebase", style="magenta", overflow="fold")
+
+    # Aggiungi i dati
+    for entry in array:
+        table.add_row(
+            entry.registry_path,
+            entry.class_name,
+            entry.assembly,
+            entry.codebase,
+        )
+
+    rich.print(table)
+
 def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
     parser.add_argument("--path", type=str, help="Percorso iniziale della directory da scansionare")
@@ -175,10 +196,13 @@ def main():
         read_registry_recursive(item, winreg.HKEY_LOCAL_MACHINE, args.verbose)
 
     rich.print("\n\n\n")
+    formatted_entries = []
     for i in com_entries:
         if i.registry_path.endswith('InprocServer32'):
             formatted_com_entry = format_com_entry(i)
-            rich.print(formatted_com_entry)
+            formatted_entries.append(formatted_com_entry)
+
+    print_com_entries(formatted_entries)
 
 
 if __name__ == "__main__":
