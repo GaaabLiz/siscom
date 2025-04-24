@@ -159,6 +159,11 @@ def print_com_entries(array: list[ComEntry]):
 
     rich.print(table)
 
+def print_relevant_info_com_entries(array: list[ComEntry]):
+    for entry in array:
+        str = f"[green]{entry.class_name}[/green] -> [magenta]{entry.codebase}[/magenta]"
+        rich.print(str)
+
 def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
     parser.add_argument("--path", type=str, help="Percorso iniziale della directory da scansionare")
@@ -203,6 +208,8 @@ def main():
             formatted_entries.append(formatted_com_entry)
 
     print_com_entries(formatted_entries)
+
+    print_relevant_info_com_entries(formatted_entries)
 
 
 if __name__ == "__main__":
