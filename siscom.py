@@ -8,6 +8,8 @@ import rich
 from rich import print
 from rich.table import Table
 
+from searcher import searcher
+
 com_entries = []
 
 @dataclass
@@ -168,9 +170,14 @@ def main():
     parser = argparse.ArgumentParser(description="Trova GUID nei file .cs e verifica le chiavi di registro.")
     parser.add_argument("--path", type=str, help="Percorso iniziale della directory da scansionare")
     parser.add_argument("--list", type=str, help="Percorso del file contenente la lista degli GUID.")
+    parser.add_argument("--search-from-list", type=str, help="Percorso del file contenente la lista delle chiavi.")
     parser.add_argument("--export", action='store_true' , help="Export to current directory all GIUD found in a .txt file.")
     parser.add_argument("--verbose", action='store_true' , help="Log all entries found and not found.")
     args = parser.parse_args()
+
+    if args.search_from_list:
+        searcher(args.search_from_list)
+        return
 
     if args.path:
         guids_found_all = find_guids_in_cs_files(args.path)
