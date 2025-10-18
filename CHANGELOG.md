@@ -1,3 +1,16 @@
+## [0.0.8] - 2025-10-18
+
+### 🚀 Features
+
+- Enhance makefile with build, clean, and documentation generation commands
+
+### 💼 Other
+
+- Bump version to 0.0.8
+
+### 📚 Documentation
+
+- Update changelog for 0.0.7
 ## [0.0.7] - 2025-10-18
 
 ### 🚀 Features
