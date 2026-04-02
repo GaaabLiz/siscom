@@ -1,4 +1,15 @@
 .idea
 build
 guids.txt
+guids2.txt
 siscom.spec
+*.pyc
+__pycache__
+.venv
+.env
+.env.example
+.env.prod
+.env.dev
+.env.test
+.env.local
+.env.example
