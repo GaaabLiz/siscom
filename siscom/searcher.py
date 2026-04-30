@@ -1,87 +1,67 @@
-
-import winreg
-import sys
-import os
-
 import rich
 
+try:
+    from siscom.registry_search.file_reader import SearchTermFileReader
+    from siscom.registry_search.key_value_printer import RegistryKeyValuePrinter
+    from siscom.registry_search.search_service import RegistrySearchService
+    from siscom.registry_search.tree_traverser import RegistryTreeTraverser
+except ModuleNotFoundError:
+    # Keep compatibility with direct module execution contexts.
+    from registry_search.file_reader import SearchTermFileReader
+    from registry_search.key_value_printer import RegistryKeyValuePrinter
+    from registry_search.search_service import RegistrySearchService
+    from registry_search.tree_traverser import RegistryTreeTraverser
 
-def read_strings_from_file(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return [line.strip() for line in f if line.strip()]
 
-# Stampa i valori di una chiave
-def print_key_values(key, key_path):
-    try:
-        i = 0
-        while True:
-            name, value, _ = winreg.EnumValue(key, i)
-            print(f"    {name} = {value}")
-            i += 1
-    except OSError:
-        pass
+class SearcherFacade:
+    """Coordinate file loading and registry searches without changing legacy behavior."""
 
-# Ricorsivamente esplora una chiave e i suoi figli
-def search_and_print_recursive(root, path):
-    try:
-        key = winreg.OpenKey(root, path)
-    except FileNotFoundError:
-        return
+    def __init__(
+        self,
+        term_reader: SearchTermFileReader,
+        search_service: RegistrySearchService,
+    ) -> None:
+        """Store dependencies used to read search terms and execute registry scans."""
+        self._term_reader = term_reader
+        self._search_service = search_service
 
-    rich.print(f"\n[green][KEY] {path}[/green]")
-    print_key_values(key, path)
+    def search_from_file(self, file_path: str) -> None:
+        """Read terms from file and run the same per-term search workflow as before."""
+        strings = self._term_reader.read_terms(file_path)
 
-    try:
-        i = 0
-        while True:
-            subkey_name = winreg.EnumKey(key, i)
-            search_and_print_recursive(root, os.path.join(path, subkey_name))
-            i += 1
-    except OSError:
-        pass
-    finally:
-        winreg.CloseKey(key)
+        for term in strings:
+            rich.print(f"\n[cyan]=== CERCA: '{term}' ===[/cyan]")
+            self._search_service.search_registry_for_string(term)
 
-# Cerca in tutto il registro partendo da radici note
-def search_registry_for_string(search_string):
-    roots = {
-        'HKEY_LOCAL_MACHINE': winreg.HKEY_LOCAL_MACHINE,
-        'HKEY_CURRENT_USER': winreg.HKEY_CURRENT_USER,
-        'HKEY_CLASSES_ROOT': winreg.HKEY_CLASSES_ROOT,
-        'HKEY_USERS': winreg.HKEY_USERS,
-        'HKEY_CURRENT_CONFIG': winreg.HKEY_CURRENT_CONFIG,
-    }
 
-    for root_name, root_const in roots.items():
-        try:
-            def recursive_search(root, path=""):
-                try:
-                    key = winreg.OpenKey(root, path)
-                except OSError:
-                    return
+_key_value_printer = RegistryKeyValuePrinter()
+_tree_traverser = RegistryTreeTraverser(_key_value_printer)
+_search_service = RegistrySearchService(_tree_traverser)
+_term_reader = SearchTermFileReader()
+_facade = SearcherFacade(_term_reader, _search_service)
 
-                if search_string.lower() in path.lower():
-                    search_and_print_recursive(root, path)
 
-                try:
-                    i = 0
-                    while True:
-                        subkey_name = winreg.EnumKey(key, i)
-                        recursive_search(root, os.path.join(path, subkey_name))
-                        i += 1
-                except OSError:
-                    pass
-                finally:
-                    winreg.CloseKey(key)
+def read_strings_from_file(file_path: str) -> list[str]:
+    """Backward-compatible wrapper that reads non-empty lines from a UTF-8 file."""
+    return _term_reader.read_terms(file_path)
 
-            recursive_search(root_const)
-        except Exception as e:
-            print(f"Errore nel cercare in {root_name}: {e}")
 
-def searcher(file_path: str):
+def print_key_values(key, key_path) -> None:
+    """Backward-compatible wrapper that prints values of an open registry key."""
+    _ = key_path
+    _key_value_printer.print_values(key)
 
-    stringhe = read_strings_from_file(file_path)
 
-    for s in stringhe:
-        rich.print(f"\n[cyan]=== CERCA: '{s}' ===[/cyan]")
-        search_registry_for_string(s)
+def search_and_print_recursive(root, path: str) -> None:
+    """Backward-compatible wrapper that prints a key and all recursive descendants."""
+    _tree_traverser.print_subtree(root, path)
+
+
+def search_registry_for_string(search_string: str) -> None:
+    """Backward-compatible wrapper that searches all known root hives for a string."""
+    _search_service.search_registry_for_string(search_string)
+
+
+def searcher(file_path: str) -> None:
+    """Entry point used by the CLI to search registry keys from a text file."""
+    _facade.search_from_file(file_path)
